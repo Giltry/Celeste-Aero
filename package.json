@@ -1,0 +1,23 @@
+{
+  "name": "celeste-aero",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "data": "node scripts/build-data.mjs",
+    "dev": "npm run data && vite",
+    "build": "node scripts/build-data.mjs && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "astronomy-engine": "^2.1.19",
+    "geomagnetism": "^0.2.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^5.4.11",
+    "vite-plugin-singlefile": "^2.3.3"
+  }
+}
