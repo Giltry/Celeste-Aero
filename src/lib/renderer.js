@@ -59,12 +59,20 @@ export function drawSky(ctx, env) {
 
   // ---- Fondo ----
   const [c0, c1, c2] = skyColors(sunAlt);
-  const up = proj.project(altAzToEnu(90, 0), -2);
-  const hor = proj.project(altAzToEnu(0, enuToAltAz(-cam[0][2], -cam[1][2], 0).az), -2);
-  const g = ctx.createLinearGradient(up.x, up.y, hor.x, hor.y);
-  g.addColorStop(0, c0); g.addColorStop(0.75, c1); g.addColorStop(1, c2);
-  ctx.fillStyle = g;
+  // Borrar el cuadro anterior con un color sólido (si el degradado falla, no quedan estelas)
+  ctx.fillStyle = c0;
   ctx.fillRect(0, 0, W, H);
+  // project() reutiliza el mismo objeto: copiar las coordenadas antes de la siguiente llamada
+  const pu = proj.project(altAzToEnu(90, 0), -2);
+  const ux = pu.x, uy = pu.y;
+  const ph = proj.project(altAzToEnu(0, enuToAltAz(-cam[0][2], -cam[1][2], 0).az), -2);
+  const hx = ph.x, hy = ph.y;
+  if ([ux, uy, hx, hy].every(Number.isFinite) && Math.hypot(hx - ux, hy - uy) > 1) {
+    const g = ctx.createLinearGradient(ux, uy, hx, hy);
+    g.addColorStop(0, c0); g.addColorStop(0.75, c1); g.addColorStop(1, c2);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  }
 
   // ---- Cuadrícula alt-az ----
   if (settings.grid) {
