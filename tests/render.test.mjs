@@ -3,6 +3,7 @@ import { buildCatalog, eqjToEnuMatrix, solarSystem, cometPositions } from '../sr
 import { drawSky, hitTest } from '../src/lib/renderer.js';
 import { lookToQ, qToMat } from '../src/lib/sensors.js';
 import { describe, searchItems } from '../src/lib/objects.js';
+import { setLang } from '../src/lib/i18n.js';
 const noop = () => {};
 const grad = { addColorStop: noop };
 const ctx = new Proxy({}, { get: (t, k) => (k in t ? t[k] : (k.startsWith('create') ? () => grad : noop)), set: (t, k, v) => { t[k] = v; return true; } });
@@ -23,4 +24,8 @@ for (const [az, alt, fov] of [[0, 30, 75], [180, 60, 40], [90, -30, 100], [270, 
 }
 console.log('avg ms', (total / 5).toFixed(1));
 const items = searchItems(world); console.log('search items', items.length);
-for (const o of [{kind:'planet',id:'Mars'},{kind:'moon',id:'Moon'},{kind:'comet',ref:world.comets[0]},{kind:'con',id:'Ori'},{kind:'star',idx:0}]) { const d = describe(o, world, date); console.log(d.title, '|', d.subtitle, '|', d.rows.map(r=>r.join(': ')).join(' ; ')); }
+for (const l of ['es', 'en']) {
+  setLang(l); console.log('--- ' + l);
+  for (const o of [{kind:'planet',id:'Mars'},{kind:'moon',id:'Moon'},{kind:'comet',ref:world.comets[0]},{kind:'con',id:'UMa'},{kind:'star',idx:0}]) { const d = describe(o, world, date); console.log(d.kindLabel, '|', d.title, '|', d.subtitle, '|', d.rows.slice(0, 3).map(r=>r.join(': ')).join(' ; ')); }
+  console.log('search:', searchItems(world).filter(i => /sir|ursa|osa/i.test(i.label + i.alt)).map(i => i.label + '/' + i.alt).join(', '));
+}

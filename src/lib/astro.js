@@ -1,6 +1,9 @@
 // Cálculos astronómicos: catálogo → vectores, J2000 → horizonte local,
 // planetas (astronomy-engine) y cometas (propagación kepleriana).
 import * as A from 'astronomy-engine';
+import { cardinal, t } from './i18n.js';
+
+export { cardinal };
 
 export const DEG = Math.PI / 180;
 export const RAD = 180 / Math.PI;
@@ -70,8 +73,6 @@ export function altAzToEnu(alt, az) {
   return [Math.cos(a) * Math.sin(z), Math.cos(a) * Math.cos(z), Math.sin(a)];
 }
 
-const CARD = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSO', 'SO', 'OSO', 'O', 'ONO', 'NO', 'NNO'];
-export const cardinal = (az) => CARD[Math.round(((az % 360) + 360) % 360 / 22.5) % 16];
 
 // Color aproximado de una estrella a partir del índice B-V
 export function bvToRgb(bv) {
@@ -98,11 +99,15 @@ export function buildCatalog(data) {
     color[i] = bvToRgb(data.s[i * 4 + 3]);
   }
   const names = {};
-  for (const k in data.n) names[k] = { name: data.n[k][0], desig: data.n[k][1], con: data.n[k][2] };
+  for (const k in data.n) {
+    const [name, desig, con, nameEn] = data.n[k];
+    names[k] = { name, nameEn: nameEn || name, desig, con };
+  }
+  // conName[id] = { name (español), nameEn (inglés/latín) }
   const conName = {};
-  const conLabels = data.c.map(([id, name, ra, dec, rank]) => {
-    conName[id] = name;
-    return { id, name, rank, vec: radecToVec(ra, dec) };
+  const conLabels = data.c.map(([id, name, ra, dec, rank, nameEn]) => {
+    conName[id] = { name, nameEn: nameEn || name };
+    return { id, name, nameEn: nameEn || name, rank, vec: radecToVec(ra, dec) };
   });
   const conLines = data.l.map(([id, segs]) =>
     ({ id, segs: segs.map((flat) => {
@@ -130,15 +135,15 @@ export const ECLIPTIC = (() => {
 
 // ---------- Sistema solar ----------
 export const BODIES = [
-  { id: 'Sun', name: 'Sol', color: '255,236,160', kind: 'sun' },
-  { id: 'Moon', name: 'Luna', color: '235,240,255', kind: 'moon' },
-  { id: 'Mercury', name: 'Mercurio', color: '220,200,180', kind: 'planet' },
-  { id: 'Venus', name: 'Venus', color: '255,250,220', kind: 'planet' },
-  { id: 'Mars', name: 'Marte', color: '255,150,110', kind: 'planet' },
-  { id: 'Jupiter', name: 'Júpiter', color: '255,225,190', kind: 'planet' },
-  { id: 'Saturn', name: 'Saturno', color: '250,225,160', kind: 'planet' },
-  { id: 'Uranus', name: 'Urano', color: '180,240,255', kind: 'planet' },
-  { id: 'Neptune', name: 'Neptuno', color: '140,170,255', kind: 'planet' },
+  { id: 'Sun', name: 'Sol', nameEn: 'Sun', color: '255,236,160', kind: 'sun' },
+  { id: 'Moon', name: 'Luna', nameEn: 'Moon', color: '235,240,255', kind: 'moon' },
+  { id: 'Mercury', name: 'Mercurio', nameEn: 'Mercury', color: '220,200,180', kind: 'planet' },
+  { id: 'Venus', name: 'Venus', nameEn: 'Venus', color: '255,250,220', kind: 'planet' },
+  { id: 'Mars', name: 'Marte', nameEn: 'Mars', color: '255,150,110', kind: 'planet' },
+  { id: 'Jupiter', name: 'Júpiter', nameEn: 'Jupiter', color: '255,225,190', kind: 'planet' },
+  { id: 'Saturn', name: 'Saturno', nameEn: 'Saturn', color: '250,225,160', kind: 'planet' },
+  { id: 'Uranus', name: 'Urano', nameEn: 'Uranus', color: '180,240,255', kind: 'planet' },
+  { id: 'Neptune', name: 'Neptuno', nameEn: 'Neptune', color: '140,170,255', kind: 'planet' },
 ];
 
 export function solarSystem(date, lat, lon, height = 0) {
@@ -169,14 +174,14 @@ export function riseSet(bodyId, date, lat, lon) {
 
 export function moonPhaseName(deg) {
   const p = ((deg % 360) + 360) % 360;
-  if (p < 11.25 || p >= 348.75) return 'Luna nueva';
-  if (p < 78.75) return 'Creciente';
-  if (p < 101.25) return 'Cuarto creciente';
-  if (p < 168.75) return 'Gibosa creciente';
-  if (p < 191.25) return 'Luna llena';
-  if (p < 258.75) return 'Gibosa menguante';
-  if (p < 281.25) return 'Cuarto menguante';
-  return 'Menguante';
+  if (p < 11.25 || p >= 348.75) return t('phase.new');
+  if (p < 78.75) return t('phase.waxCres');
+  if (p < 101.25) return t('phase.firstQ');
+  if (p < 168.75) return t('phase.waxGib');
+  if (p < 191.25) return t('phase.full');
+  if (p < 258.75) return t('phase.wanGib');
+  if (p < 281.25) return t('phase.lastQ');
+  return t('phase.wanCres');
 }
 
 // ---------- Cometas ----------

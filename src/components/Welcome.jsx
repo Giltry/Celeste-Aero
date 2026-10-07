@@ -1,15 +1,10 @@
-import { AeroWindow, AeroButton, Icon } from './Aero.jsx';
+import { AeroWindow, AeroButton, LangSwitch, Icon } from './Aero.jsx';
+import { t } from '../lib/i18n.js';
 
-const STATUS = {
-  idle: { t: 'Pendiente', c: 'idle' },
-  asking: { t: 'Solicitando…', c: 'asking' },
-  granted: { t: 'Permitido', c: 'ok' },
-  denied: { t: 'Denegado', c: 'bad' },
-  unavailable: { t: 'No disponible', c: 'bad' },
-};
+const STATUS_CLASS = { idle: 'idle', asking: 'asking', granted: 'ok', denied: 'bad', unavailable: 'bad' };
 
 function Step({ n, title, text, status, extra }) {
-  const s = STATUS[status] || STATUS.idle;
+  const key = STATUS_CLASS[status] ? status : 'idle';
   return (
     <div className="step">
       <div className="step-n">{n}</div>
@@ -18,13 +13,13 @@ function Step({ n, title, text, status, extra }) {
         <span>{text}</span>
         {extra && <em>{extra}</em>}
       </div>
-      <span className={`chip chip-${s.c}`}>{s.t}</span>
+      <span className={`chip chip-${STATUS_CLASS[key]}`}>{t('status.' + key)}</span>
     </div>
   );
 }
 
-export default function Welcome({ perms, location, onStart, onManual, busy }) {
-  const acc = location?.acc ? `Precisión actual: ±${Math.round(location.acc)} m` : null;
+export default function Welcome({ perms, location, onStart, onManual, busy, lang, onLang }) {
+  const acc = location?.acc ? t('welcome.geo.acc', { m: Math.round(location.acc) }) : null;
   return (
     <div className="welcome">
       <div className="aero-bg">
@@ -37,40 +32,30 @@ export default function Welcome({ perms, location, onStart, onManual, busy }) {
         ))}
       </div>
 
-      <AeroWindow title="Celeste Aero — Bienvenida" icon={<span className="mini-orb" />} className="welcome-window">
+      <AeroWindow title={t('welcome.title')} icon={<span className="mini-orb" />} className="welcome-window">
+        <div className="welcome-lang">
+          <LangSwitch lang={lang} onChange={onLang} />
+        </div>
         <div className="welcome-hero">
           <div className="hero-orb">{Icon.globe}</div>
           <div>
             <h1>Celeste Aero</h1>
-            <p>Apunta tu celular al cielo y descubre estrellas, constelaciones, planetas y cometas en tiempo real.</p>
+            <p>{t('welcome.tagline')}</p>
           </div>
         </div>
 
         <div className="steps">
-          <Step
-            n="1"
-            title="Ubicación precisa"
-            text="Tu latitud y longitud definen qué parte del cielo ves. Se usa el GPS en alta precisión y no sale de tu dispositivo."
-            status={perms.geo}
-            extra={acc}
-          />
-          <Step
-            n="2"
-            title="Sensores de movimiento"
-            text="Giroscopio, acelerómetro y brújula indican hacia dónde apuntas el teléfono."
-            status={perms.motion}
-          />
+          <Step n="1" title={t('welcome.geo.title')} text={t('welcome.geo.text')} status={perms.geo} extra={acc} />
+          <Step n="2" title={t('welcome.motion.title')} text={t('welcome.motion.text')} status={perms.motion} />
         </div>
 
         <div className="welcome-actions">
           <AeroButton onClick={onStart} disabled={busy}>
-            {busy ? 'Activando…' : 'Permitir y ver el cielo'}
+            {busy ? t('welcome.starting') : t('welcome.start')}
           </AeroButton>
-          <button className="link-btn" onClick={onManual}>Explorar sin sensores (arrastrar con el dedo)</button>
+          <button className="link-btn" onClick={onManual}>{t('welcome.manual')}</button>
         </div>
-        <p className="fine">
-          Consejo: aléjate de objetos metálicos y, si la brújula parece desviada, mueve el teléfono en forma de “8”.
-        </p>
+        <p className="fine">{t('welcome.tip')}</p>
       </AeroWindow>
     </div>
   );

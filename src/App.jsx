@@ -6,7 +6,8 @@ import { Icon } from './components/Aero.jsx';
 import { InfoPanel, SearchPanel, LayersPanel, TimePanel } from './components/Panels.jsx';
 import { buildCatalog, cardinal } from './lib/astro.js';
 import { OrientationTracker, requestMotionPermission } from './lib/sensors.js';
-import { describe, altAzOf, shortComet } from './lib/objects.js';
+import { describe, altAzOf } from './lib/objects.js';
+import { t, getLang, setLang, locale } from './lib/i18n.js';
 
 const DEFAULT_SETTINGS = {
   lines: true, conNames: true, starNames: true, planets: true, comets: true,
@@ -37,7 +38,8 @@ export default function App() {
   const [hud, setHud] = useState(null);
   const [night, setNight] = useState(false);
   const [toast, setToast] = useState(null);
-  const [cometStatus, setCometStatus] = useState('Cargando datos de JPL…');
+  const [cometStatus, setCometStatus] = useState({ key: 'comets.loading' });
+  const [lang, setLangState] = useState(getLang);
   const [clockState, setClockState] = useState({ speed: 1 });
   const watchId = useRef(null);
   const bestAcc = useRef(Infinity);
@@ -79,9 +81,9 @@ export default function App() {
           const m = c.name.match(/\(([^)]+)\)/);
           return { ...c, short: m && !/^\d/.test(m[1]) ? m[1] : c.name.replace(/\s*\([^)]*\)\s*$/, '') };
         });
-        setCometStatus(d.error ? 'Sin conexión con JPL por ahora' : `${d.comets.length} cometas con perihelio cercano (JPL)`);
+        setCometStatus(d.error ? { key: 'comets.offline' } : { key: 'comets.count', vars: { n: d.comets.length } });
       })
-      .catch(() => setCometStatus('No se pudieron cargar los cometas'));
+      .catch(() => setCometStatus({ key: 'comets.failed' }));
     world.tracker.start();
     return () => world.tracker.stop();
   }, [world]);
@@ -146,16 +148,16 @@ export default function App() {
     setMode(sensorsOk ? 'sensor' : 'manual');
     setPhase('sky');
     keepAwake();
-    if (!sensorsOk) notify('No se detectaron sensores de orientación. Arrastra con el dedo para explorar el cielo.');
-    else notify('Apunta tu teléfono al cielo. Pellizca para hacer zoom y toca un objeto para ver sus datos.');
-    if (!geoOk) notify('Sin ubicación GPS: se usa una ubicación aproximada. Puedes cambiarla en Capas.', 'warn');
+    if (!sensorsOk) notify(t('toast.noSensors'));
+    else notify(t('toast.pointPhone'));
+    if (!geoOk) notify(t('toast.noGps'), 'warn');
   };
 
   const handleManual = async () => {
     setMode('manual');
     setPhase('sky');
     const ok = await startGeo();
-    if (!ok) notify('Sin ubicación GPS: se usa una ubicación aproximada. Puedes cambiarla en Capas.', 'warn');
+    if (!ok) notify(t('toast.noGps'), 'warn');
   };
 
   // ---------- Modo de cámara ----------
@@ -164,12 +166,12 @@ export default function App() {
       if (hud) world.manualView = { az: hud.az, alt: Math.max(-89, Math.min(89, hud.alt)) };
       world.fov = Math.max(world.fov, 60);
       setMode('manual');
-      notify('Modo manual: arrastra para mover la vista.');
+      notify(t('toast.manualMode'));
     } else {
       const motion = await requestMotionPermission();
       const ok = motion === 'granted' && (world.tracker.active || (await waitForSensors()));
-      if (ok) { world.fov = Math.min(world.fov, 75); setMode('sensor'); notify('Modo sensores: mueve tu teléfono.'); }
-      else notify('Los sensores de orientación no están disponibles en este dispositivo.', 'warn');
+      if (ok) { world.fov = Math.min(world.fov, 75); setMode('sensor'); notify(t('toast.sensorMode')); }
+      else notify(t('toast.sensorsUnavailable'), 'warn');
     }
   };
 
@@ -196,8 +198,8 @@ export default function App() {
 
   const pointAt = (inf) => {
     if (!inf) return;
-    if (target?.title === inf.title) { setTarget(null); return; }
-    setTarget({ vec: inf.vec, title: inf.title });
+    if (target?.key === inf.key) { setTarget(null); return; }
+    setTarget({ vec: inf.vec, title: inf.title, key: inf.key, obj: inf.obj });
     if (mode === 'manual') centerOn(inf.vec);
   };
 
@@ -206,7 +208,7 @@ export default function App() {
     setPanel(null);
     setInfo(d);
     if (d) {
-      setTarget({ vec: d.vec, title: d.title });
+      setTarget({ vec: d.vec, title: d.title, key: d.key, obj: d.obj });
       if (mode === 'manual') centerOn(d.vec);
     }
   };
@@ -224,13 +226,27 @@ export default function App() {
   const setSetting = (k, v) => setSettings((s) => ({ ...s, [k]: v }));
   const setManualLocation = (lat, lon) => {
     if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
-      notify('Coordenadas no válidas.', 'warn'); return;
+      notify(t('toast.badCoords'), 'warn'); return;
     }
     if (watchId.current != null) { navigator.geolocation.clearWatch(watchId.current); watchId.current = null; }
     const loc = { lat, lon, acc: null, source: 'manual' };
     store.set('location', loc);
     setLocation(loc);
-    notify('Ubicación actualizada.');
+    notify(t('toast.locationUpdated'));
+  };
+
+  // ---------- Idioma ----------
+  useEffect(() => { document.documentElement.lang = lang; }, [lang]);
+  const changeLang = (l) => {
+    setLang(l);
+    setLangState(l);
+    // Re-traducir lo que ya está en pantalla
+    setInfo((i) => (i ? describe(i.obj, world, currentDate()) || i : i));
+    setTarget((tg) => {
+      if (!tg?.obj) return tg;
+      const d = describe(tg.obj, world, currentDate());
+      return d ? { ...tg, title: d.title } : tg;
+    });
   };
 
   const togglePanel = (p) => { setInfo(null); setPanel((cur) => (cur === p ? null : p)); };
@@ -242,18 +258,18 @@ export default function App() {
         <div className="aero-bg"><div className="aero-rays" /><div className="aero-hill aero-hill-1" /><div className="aero-hill aero-hill-2" /></div>
         <div className="loader">
           <div className="hero-orb spin">{Icon.globe}</div>
-          <p>{phase === 'error' ? 'No se pudo cargar el catálogo de estrellas. Revisa tu conexión y recarga.' : 'Cargando catálogo de estrellas…'}</p>
+          <p>{phase === 'error' ? t('load.error') : t('load.catalog')}</p>
         </div>
       </div>
     );
   }
 
   if (phase === 'welcome') {
-    return <Welcome perms={perms} location={location.source === 'gps' ? location : null} onStart={handleStart} onManual={handleManual} busy={busy} />;
+    return <Welcome perms={perms} location={location.source === 'gps' ? location : null} onStart={handleStart} onManual={handleManual} busy={busy} lang={lang} onLang={changeLang} />;
   }
 
   const isNow = clockState.speed === 1 && hud && Math.abs(hud.date.getTime() - Date.now()) < 5000;
-  const locLabel = location.source === 'gps' ? `±${Math.round(location.acc)} m` : location.source === 'manual' ? 'Manual' : 'Aprox.';
+  const locLabel = location.source === 'gps' ? `±${Math.round(location.acc)} m` : location.source === 'manual' ? t('hud.manualLoc') : t('hud.approxLoc');
   const ti = hud?.target;
 
   return (
@@ -266,17 +282,17 @@ export default function App() {
         <div className="tb-brand"><span className="mini-orb" /> Celeste Aero</div>
         <div className="tb-heading">
           <span className="tb-az">{hud ? `${Math.round(hud.az)}° ${cardinal(hud.az)}` : '—'}</span>
-          <span className="tb-alt">Altura {hud ? Math.round(hud.alt) : 0}°</span>
+          <span className="tb-alt">{t('hud.altitude', { d: hud ? Math.round(hud.alt) : 0 })}</span>
         </div>
         <div className="tb-status">
-          <span className={`led ${mode === 'sensor' ? (hud?.sensorLive ? 'ok' : 'warn') : 'off'}`} title="Sensores" />
+          <span className={`led ${mode === 'sensor' ? (hud?.sensorLive ? 'ok' : 'warn') : 'off'}`} title={t('hud.sensors')} />
           <span className="tb-loc">{Icon.pin} {locLabel}</span>
         </div>
       </header>
       {!isNow && hud && (
         <button className="time-chip glass" onClick={() => togglePanel('time')}>
-          ⏱ {hud.date.toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-          {clockState.speed > 1 ? ` · ${clockState.speed}×` : clockState.speed === 0 ? ' · pausa' : ''}
+          ⏱ {hud.date.toLocaleString(locale(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+          {clockState.speed > 1 ? ` · ${clockState.speed}×` : clockState.speed === 0 ? ` · ${t('hud.paused')}` : ''}
         </button>
       )}
 
@@ -289,21 +305,21 @@ export default function App() {
       {target && ti && !info && !panel && (
         <div className="target-pill glass" onClick={() => setTarget(null)}>
           <span className="tp-icon">{Icon.target}</span>
-          <span><b>{target.title}</b> · {Math.round(ti.altAz.alt)}° {cardinal(ti.altAz.az)}{ti.onScreen ? '' : ' · sigue la flecha'}</span>
+          <span><b>{target.title}</b> · {Math.round(ti.altAz.alt)}° {cardinal(ti.altAz.az)}{ti.onScreen ? '' : ` · ${t('hud.followArrow')}`}</span>
           <span className="tp-x">✕</span>
         </div>
       )}
 
       {/* Ventanas */}
       {info && (
-        <InfoPanel info={info} mode={mode} isTarget={target?.title === info.title}
+        <InfoPanel info={info} mode={mode} isTarget={target?.key === info.key}
           onClose={() => setInfo(null)} onPoint={() => pointAt(info)} onCenter={() => centerOn(info.vec)} />
       )}
-      {panel === 'search' && <SearchPanel world={world} onPick={pick} onClose={() => setPanel(null)} />}
+      {panel === 'search' && <SearchPanel world={world} onPick={pick} onClose={() => setPanel(null)} lang={lang} />}
       {panel === 'layers' && (
         <LayersPanel settings={settings} setSetting={setSetting} location={location} declination={declination}
-          onClose={() => setPanel(null)} onRelocate={() => startGeo().then((ok) => notify(ok ? 'Ubicación GPS activada.' : 'No se pudo obtener la ubicación GPS.', ok ? 'info' : 'warn'))}
-          setManualLocation={setManualLocation} cometStatus={cometStatus} />
+          onClose={() => setPanel(null)} onRelocate={() => startGeo().then((ok) => notify(ok ? t('toast.gpsOn') : t('toast.gpsFail'), ok ? 'info' : 'warn'))}
+          setManualLocation={setManualLocation} cometStatus={t(cometStatus.key, cometStatus.vars)} lang={lang} onLang={changeLang} />
       )}
       {panel === 'time' && hud && (
         <TimePanel date={hud.date} speed={clockState.speed} isNow={isNow} onShift={timeShift} onSpeed={timeSpeed}
@@ -320,15 +336,15 @@ export default function App() {
 
       {/* Barra de tareas */}
       <nav className="taskbar">
-        <button className={`tb-btn ${panel === 'layers' ? 'on' : ''}`} onClick={() => togglePanel('layers')}>{Icon.layers}<span>Capas</span></button>
-        <button className={`tb-btn ${panel === 'time' ? 'on' : ''}`} onClick={() => togglePanel('time')}>{Icon.clock}<span>Tiempo</span></button>
-        <button className={`orb-btn ${panel === 'search' ? 'on' : ''}`} onClick={() => togglePanel('search')} aria-label="Buscar">
+        <button className={`tb-btn ${panel === 'layers' ? 'on' : ''}`} onClick={() => togglePanel('layers')}>{Icon.layers}<span>{t('bar.layers')}</span></button>
+        <button className={`tb-btn ${panel === 'time' ? 'on' : ''}`} onClick={() => togglePanel('time')}>{Icon.clock}<span>{t('bar.time')}</span></button>
+        <button className={`orb-btn ${panel === 'search' ? 'on' : ''}`} onClick={() => togglePanel('search')} aria-label={t('bar.search')}>
           <span className="orb-glow" />{Icon.star}
         </button>
         <button className={`tb-btn ${mode === 'sensor' ? 'on' : ''}`} onClick={toggleMode}>
-          {mode === 'sensor' ? Icon.phone : Icon.hand}<span>{mode === 'sensor' ? 'Sensores' : 'Manual'}</span>
+          {mode === 'sensor' ? Icon.phone : Icon.hand}<span>{mode === 'sensor' ? t('bar.sensors') : t('bar.manual')}</span>
         </button>
-        <button className={`tb-btn ${night ? 'on' : ''}`} onClick={() => setNight((n) => !n)}>{Icon.moon}<span>Noche</span></button>
+        <button className={`tb-btn ${night ? 'on' : ''}`} onClick={() => setNight((n) => !n)}>{Icon.moon}<span>{t('bar.night')}</span></button>
       </nav>
 
       {night && <div className="night-filter" />}

@@ -37,13 +37,17 @@ async function load(name) {
 const r2 = (x) => Math.round(x * 100) / 100;
 const r3 = (x) => Math.round(x * 1000) / 1000;
 const toRa = (lon) => (lon < 0 ? lon + 360 : lon);
+const DATA_VERSION = 2; // v2: nombres en español e inglés
 
 async function main() {
   if (!process.env.FORCE_DATA) {
     try {
       await access(outFile);
-      console.log('[data] sky.json ya existe, se reutiliza (FORCE_DATA=1 para regenerar)');
-      return;
+      const current = JSON.parse(await readFile(outFile, 'utf8'));
+      if (current.v === DATA_VERSION) {
+        console.log('[data] sky.json ya existe, se reutiliza (FORCE_DATA=1 para regenerar)');
+        return;
+      }
     } catch {}
   }
   const [stars, lines, cons, names] = await Promise.all(FILES.map(load));
@@ -67,8 +71,9 @@ async function main() {
     const info = names[String(st.hip)];
     if (info) {
       const proper = info.es || info.name || '';
+      const properEn = info.name || info.es || '';
       const desig = info.desig ? `${info.desig} ${info.c}` : '';
-      if (proper || st.mag < 3.5) n[i] = [proper, desig, info.c || ''];
+      if (proper || st.mag < 3.5) n[i] = [proper, desig, info.c || '', properEn];
     }
   });
 
@@ -83,10 +88,11 @@ async function main() {
     r2(toRa(f.geometry.coordinates[0])),
     r2(f.geometry.coordinates[1]),
     Number(f.properties.rank) || 3,
+    f.properties.name || f.properties.en, // en inglés se usa el nombre latino (Ursa Major, Orion)
   ]);
 
   await mkdir(path.dirname(outFile), { recursive: true });
-  const json = JSON.stringify({ v: 1, s, n, l, c, src: 'd3-celestial (BSD-3), Hipparcos' });
+  const json = JSON.stringify({ v: DATA_VERSION, s, n, l, c, src: 'd3-celestial (BSD-3), Hipparcos' });
   await writeFile(outFile, json);
   console.log(`[data] ${list.length} estrellas, ${Object.keys(n).length} nombres, ${l.length} figuras → ${(json.length / 1024).toFixed(0)} KB`);
 }

@@ -1,5 +1,6 @@
 // Dibujo del cielo en Canvas 2D con proyección estereográfica centrada en la cámara.
 import { applyEnu, altAzToEnu, enuToAltAz, ECLIPTIC, DEG, cardinal } from './astro.js';
+import { localName } from './i18n.js';
 
 const tmp = [0, 0, 0];
 
@@ -139,7 +140,7 @@ export function drawSky(ctx, env) {
     ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 6.2832); ctx.fill();
     const nm = cat.names[i];
     hits.push({ x: p.x, y: p.y, r: r + 6, pri: 1 + (5 - m) * 0.1, obj: { kind: 'star', idx: i } });
-    if (settings.starNames && nm?.name && m < 2.2 + Math.log2(zoom) * 1.3) labels.push([p.x + r + 4, p.y + 4, nm.name]);
+    if (settings.starNames && nm?.name && m < 2.2 + Math.log2(zoom) * 1.3) labels.push([p.x + r + 4, p.y + 4, localName(nm)]);
   }
 
   // ---- Nombres de constelaciones ----
@@ -152,7 +153,7 @@ export function drawSky(ctx, env) {
       const w = applyEnu(Meqj, c.vec, tmp, false);
       if (w[2] < -0.05 && !settings.belowHorizon) continue;
       const p = proj.project(w, 0);
-      if (p.ok) ctx.fillText(c.name.toUpperCase(), p.x, p.y);
+      if (p.ok) ctx.fillText(localName(c).toUpperCase(), p.x, p.y);
     }
     ctx.textAlign = 'left';
   }
@@ -227,7 +228,7 @@ export function drawSky(ctx, env) {
         }
       }
       hits.push({ x, y, r: r + 12, pri: 5, obj: { kind: b.kind, id: b.id } });
-      labels.push([x + r + 5, y - r - 2, b.name, 'planet']);
+      labels.push([x + r + 5, y - r - 2, localName(b), 'planet']);
     }
   }
 

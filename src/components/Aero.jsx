@@ -1,5 +1,6 @@
 // Componentes base con estética Frutiger Aero (vidrio, brillo, burbujas).
 import { useEffect } from 'react';
+import { t, LANGS } from '../lib/i18n.js';
 
 export function AeroWindow({ title, icon, onClose, children, className = '', footer }) {
   useEffect(() => {
@@ -15,7 +16,7 @@ export function AeroWindow({ title, icon, onClose, children, className = '', foo
           {title}
         </span>
         {onClose && (
-          <button className="aero-close" onClick={onClose} aria-label="Cerrar">
+          <button className="aero-close" onClick={onClose} aria-label={t('win.close')}>
             <svg viewBox="0 0 12 12" width="11" height="11"><path d="M2 2l8 8M10 2l-8 8" stroke="#fff" strokeWidth="2" strokeLinecap="round" /></svg>
           </button>
         )}
@@ -54,6 +55,19 @@ export function Segmented({ options, value, onChange }) {
       {options.map((o) => (
         <button key={o.value} className={value === o.value ? 'on' : ''} onClick={() => onChange(o.value)}>
           {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// Selector de idioma (píldora de vidrio)
+export function LangSwitch({ lang, onChange, compact = false }) {
+  return (
+    <div className={`lang-switch ${compact ? 'compact' : ''}`} role="group" aria-label="Idioma / Language">
+      {LANGS.map((l) => (
+        <button key={l.value} className={lang === l.value ? 'on' : ''} aria-pressed={lang === l.value} onClick={() => onChange(l.value)}>
+          {compact ? l.value.toUpperCase() : l.label}
         </button>
       ))}
     </div>
